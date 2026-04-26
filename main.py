@@ -4,8 +4,8 @@ import random
 import os
 
 # Configuration
-GET_URL = "http://agritech-backend-api.nodesdigitalbd.com:8083/api/data/pipeline/v1/kafka/get/task/fisheries"
-POST_URL = "http://agritech-backend-api.nodesdigitalbd.com:8083/api/data/pipeline/v1/kafka/post/task/fisheries"
+GET_URL = "http://example.com:8083/api/data/pipeline/v1/kafka/get/task/fisheries"
+POST_URL = "http://example.com:8083/api/data/pipeline/v1/kafka/post/task/fisheries"
 MOTHER_DEVICE_SERIAL = "050609I0J789ND24"
 VARIABLE_NAME = "DissolvedOxygen"
 TIMESTAMP_FILE = "last_timestamp.txt"
@@ -15,7 +15,6 @@ def get_latest_mother_data():
         response = requests.get(GET_URL)
         data = response.json()
         
-        # Filter for mother device and DissolvedOxygen
         relevant_data = [
             item for item in data 
             if item['deviceSerial'] == MOTHER_DEVICE_SERIAL and item['valueVariable'] == VARIABLE_NAME
@@ -24,7 +23,7 @@ def get_latest_mother_data():
         if not relevant_data:
             return None
         
-        # Sort by the 'timestamp' field (numeric string) descending to get the newest
+        # Sort by the 'timestamp' field (numeric string) descending
         latest = sorted(relevant_data, key=lambda x: int(x['timestamp']), reverse=True)[0]
         return latest
     except Exception as e:
@@ -32,17 +31,24 @@ def get_latest_mother_data():
         return None
 
 def post_data(serial_suffix, base_value, original_ts):
-    """
-    serial_suffix: V1, V2, or V3
-    base_value: The valueMeasure from mother device
-    original_ts: The 'ts' string from the mother device
-    """
-    # Calculate random value between -1.0 and +1.0
-    random_offset = random.uniform(-1.0, 1.0)
-    new_value = round(float(base_value) + random_offset, 3)
+    base_val_float = float(base_value)
     
-    # Construct the internal payload
-    # Note: 'ts' is now passed directly from the mother device data
+    # --- NEW LOGIC START ---
+    if 0 <= base_val_float <= 2.0:
+        # If value is between 0 and 2, increase by 0.1 to 0.5
+        random_offset = random.uniform(0.1, 0.5)
+        print(f"Value {base_val_float} is in 0-2 range. Increasing by {round(random_offset, 3)}")
+    else:
+        # Otherwise, use the original -1.0 to +1.0 range
+        random_offset = random.uniform(-1.0, 1.0)
+    # --- NEW LOGIC END ---
+
+    new_value = round(base_val_float + random_offset, 3)
+    
+    # Ensure value doesn't go below 0 (important for Dissolved Oxygen)
+    if new_value < 0:
+        new_value = 0.01
+
     payload_dict = {
         "deviceName": f"NDLNode #{MOTHER_DEVICE_SERIAL}{serial_suffix}",
         "deviceSerial": f"{MOTHER_DEVICE_SERIAL}{serial_suffix}",
@@ -64,13 +70,11 @@ def post_data(serial_suffix, base_value, original_ts):
         print(f"Error posting {serial_suffix}: {e}")
 
 def main():
-    # 1. Load last processed internal timestamp (the unique ID)
     last_processed_id = ""
     if os.path.exists(TIMESTAMP_FILE):
         with open(TIMESTAMP_FILE, "r") as f:
             last_processed_id = f.read().strip()
 
-    # 2. Get latest from API
     latest_data = get_latest_mother_data()
     
     if not latest_data:
@@ -79,19 +83,16 @@ def main():
 
     current_id = latest_data['timestamp']
 
-    # 3. Check if data is new (compare the unique timestamp string)
     if current_id == last_processed_id:
-        print(f"No new data. Current timestamp {current_id} already processed.")
+        print(f"No new data. Timestamp {current_id} already processed.")
         return
 
     print(f"New data detected! (New ID: {current_id})")
 
-    # 4. Generate and Post for V1, V2, V3 using the mother's 'ts'
     mother_ts_string = latest_data['ts'] 
     for suffix in ["V1", "V2", "V3"]:
         post_data(suffix, latest_data['valueMeasure'], mother_ts_string)
 
-    # 5. Update the local tracking file
     with open(TIMESTAMP_FILE, "w") as f:
         f.write(current_id)
 
