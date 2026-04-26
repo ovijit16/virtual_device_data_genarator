@@ -4,8 +4,8 @@ import random
 import os
 
 # Configuration
-GET_URL = "http://example.com:8083/api/data/pipeline/v1/kafka/get/task/fisheries"
-POST_URL = "http://example.com:8083/api/data/pipeline/v1/kafka/post/task/fisheries"
+GET_URL = "http://agritech-backend-api.nodesdigitalbd.com:8083/api/data/pipeline/v1/kafka/get/task/fisheries"
+POST_URL = "http://agritech-backend-api.nodesdigitalbd.com:8083/api/data/pipeline/v1/kafka/post/task/fisheries"
 MOTHER_DEVICE_SERIAL = "050609I0J789ND24"
 VARIABLE_NAME = "DissolvedOxygen"
 TIMESTAMP_FILE = "last_timestamp.txt"
