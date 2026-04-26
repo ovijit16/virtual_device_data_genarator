@@ -1,0 +1,35 @@
+name: IoT Data Sync
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Every 5 minutes
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  run-sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Important: allows the bot to push the updated timestamp file
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run Script
+        run: python main.py
+
+      - name: Commit and Push if timestamp changed
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "actions@github.com"
+          git add last_timestamp.txt
+          # Only commit if there are changes
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last processed timestamp" && git push)
