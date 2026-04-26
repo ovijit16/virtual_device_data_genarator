@@ -2,18 +2,23 @@ name: IoT Data Sync
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # Every 5 minutes
-  workflow_dispatch: # Allows manual trigger
+    # This runs every 5 minutes (GitHub's minimum allowed interval)
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # This allows you to keep the manual "Run workflow" button
 
 jobs:
   run-sync:
     runs-on: ubuntu-latest
+    # This permission is REQUIRED to push the timestamp file back to the repo
     permissions:
-      contents: write # Important: allows the bot to push the updated timestamp file
+      contents: write
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
+        with:
+          # fetch-depth: 0 is needed to allow amending and force-pushing history
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -26,10 +31,21 @@ jobs:
       - name: Run Script
         run: python main.py
 
-      - name: Commit and Push if timestamp changed
+      - name: Commit and Force Push
         run: |
-          git config --global user.name "GitHub Action Bot"
-          git config --global user.email "actions@github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
           git add last_timestamp.txt
-          # Only commit if there are changes
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last processed timestamp" && git push)
+          
+          # Check if there is a change to commit
+          if ! git diff --cached --quiet; then
+            # 1. Try to amend the previous commit to keep history clean
+            # 2. If it fails (e.g., first run), create a new commit
+            git commit --amend -m "Bot: Update last processed timestamp" || git commit -m "Bot: Update last processed timestamp"
+            
+            # Force push to overwrite the last commit on the server
+            git push --force
+          else
+            echo "No changes in data. Skipping commit."
+          fi
